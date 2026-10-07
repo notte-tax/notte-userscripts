@@ -6,15 +6,19 @@ MFクラウド会計の「仕訳帳」を開くと、誤りの可能性が高い
 ## 1. Tampermonkey を入れる（済んでいれば飛ばす）
 
 1. Chrome ウェブストアで「Tampermonkey」を検索し、「Chrome に追加」
-2. Chrome の右上「︙」→「拡張機能」→「拡張機能を管理」→ Tampermonkey の「詳細」
-3. 「ユーザー スクリプトを許可する」をオンにする
-   （この項目が無い古い Chrome では、拡張機能の画面右上の「デベロッパー モード」をオンにする）
+2. アドレス欄に `chrome://extensions` と入力して Enter
+3. 画面の**いちばん上の帯の右端**にある「**デベロッパー モード**」をオンにする
+4. Tampermonkey のカードの「詳細」を押し、「**ユーザー スクリプトを許可する**」をオンにする
+5. Chrome をいったんすべて閉じて、開き直す
+
+**3 と 4 は両方とも必要です。** 片方だけだと、スクリプトを保存するときに「ユーザー スクリプトが無効です」と出て動きません。
 
 ## 2. スクリプトを入れる
 
 1. 次の URL を Chrome で開く
    `https://raw.githubusercontent.com/notte-tax/notte-userscripts/main/dist/mf-journal-check.user.js`
 2. Tampermonkey の画面が開くので「インストール」を押す
+3. Tampermonkey のアイコン →「ダッシュボード」で、一覧に「notte MF仕訳帳チェック」があり、スイッチが緑になっていることを確かめる
 
 以後、所内でルールを直すと自動で更新されます（Tampermonkey が定期的に確認します）。
 
