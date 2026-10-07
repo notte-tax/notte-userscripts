@@ -135,3 +135,17 @@ test('R028: 通勤手当は課税仕入なので対象外', () => {
   withRemark.remark = '9月分通勤手当';
   assert.deepEqual(ids(run([J('1', '2025-10-01', [withRemark])])), []);
 });
+
+test('R051: 1000円未満は比べない（振込手数料など）、1000円ちょうどは比べる', () => {
+  assert.deepEqual(ids(run([J('10', '2025-10-01', RENT(999)), J('11', '2025-10-01', RENT(999))])), []);
+  assert.deepEqual(ids(run([J('10', '2025-10-01', RENT(1000)), J('11', '2025-10-01', RENT(1000))])), ['R051:要確認', 'R051:要確認']);
+});
+
+test('R055: 決まり文句の摘要は比べない（完全一致のみ）', () => {
+  const mk = (remark) => [
+    J('20', '2025-10-01', [B(S('消耗品費', 'expense', '課仕 10%', 3000), BANK, remark)]),
+    J('21', '2025-10-09', [B(S('通信費', 'expense', '課仕 10%', 2000), BANK, remark)]),
+  ];
+  assert.deepEqual(ids(run(mk('当月分'))), []);
+  assert.deepEqual(ids(run(mk('当月分 会費'))), ['R055:懸念', 'R055:懸念']);
+});

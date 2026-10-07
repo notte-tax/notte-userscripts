@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         notte MF仕訳帳チェック
 // @namespace    https://github.com/notte-tax/notte-userscripts
-// @version      0.1.0
+// @version      0.1.1
 // @description  MFクラウド会計の仕訳帳で、誤りの可能性が高い仕訳に色と理由を表示します（表示のみ・MFへの書き込みなし・外部通信なし）
 // @author       税理士法人notte
 // @match        https://accounting.moneyforward.com/books*
@@ -79,8 +79,10 @@ const CONFIG = {
   consumablesThreshold: 100000,              // R036 消耗品費
   repairThreshold: 200000,                   // R035 修繕費
   nearDuplicateDays: 3,                      // R052 近い日の重複候補
+  duplicateMinAmount: 1000,                  // R051・R052 この金額未満は比べない（振込手数料など）
   invoiceTransitionChangeDate: '2026-10-01', // R068 80%控除が終わる日
   minRemarkLength: 2,                        // R055 比べる摘要の最短文字数
+  remarkStopWords: ['当月分', '前月分', '振込', '振込手数料', '手数料', '口座振替'],  // R055 で比べない摘要（完全一致）
   salaryItems: ['役員報酬', '給料手当', '給料', '賃金', '賞与', '役員賞与', '法定福利費', '退職金'],
   salaryTaxableKeywords: ['通勤'],  // R028 の対象外（通勤手当は課税仕入）
   interestIncomeItems: ['受取利息'],
@@ -279,7 +281,7 @@ function checkDuplicates(journals, config, add) {
     for (let b = a + 1; b < list.length; b++) {
       const x = list[a];
       const y = list[b];
-      if (x.sig.total <= 0 || x.sig.key !== y.sig.key || x.sig.total !== y.sig.total) continue;
+      if (x.sig.total < config.duplicateMinAmount || x.sig.key !== y.sig.key || x.sig.total !== y.sig.total) continue;
       const diff = Math.abs(x.day - y.day);
       if (diff === 0) {
         add(x.i, 'R051', SEVERITY.CHECK, `重複候補：No.${y.j.no}と同じ日・同じ金額・同じ科目です`);
@@ -301,6 +303,7 @@ function checkRemarkConsistency(journals, config, add) {
       if (s.side !== 'debit' || s.category !== 'expense') continue;
       const remark = norm(s.remark);
       if (remark.length < config.minRemarkLength) continue;
+      if (config.remarkStopWords.some((w) => norm(w) === remark)) continue;
       if (!groups.has(remark)) groups.set(remark, { items: new Set(), indexes: new Set() });
       groups.get(remark).items.add(s.item);
       groups.get(remark).indexes.add(i);

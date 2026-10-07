@@ -3,8 +3,10 @@ const CONFIG = {
   consumablesThreshold: 100000,              // R036 消耗品費
   repairThreshold: 200000,                   // R035 修繕費
   nearDuplicateDays: 3,                      // R052 近い日の重複候補
+  duplicateMinAmount: 1000,                  // R051・R052 この金額未満は比べない（振込手数料など）
   invoiceTransitionChangeDate: '2026-10-01', // R068 80%控除が終わる日
   minRemarkLength: 2,                        // R055 比べる摘要の最短文字数
+  remarkStopWords: ['当月分', '前月分', '振込', '振込手数料', '手数料', '口座振替'],  // R055 で比べない摘要（完全一致）
   salaryItems: ['役員報酬', '給料手当', '給料', '賃金', '賞与', '役員賞与', '法定福利費', '退職金'],
   salaryTaxableKeywords: ['通勤'],  // R028 の対象外（通勤手当は課税仕入）
   interestIncomeItems: ['受取利息'],

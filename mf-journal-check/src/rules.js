@@ -90,7 +90,7 @@ function checkDuplicates(journals, config, add) {
     for (let b = a + 1; b < list.length; b++) {
       const x = list[a];
       const y = list[b];
-      if (x.sig.total <= 0 || x.sig.key !== y.sig.key || x.sig.total !== y.sig.total) continue;
+      if (x.sig.total < config.duplicateMinAmount || x.sig.key !== y.sig.key || x.sig.total !== y.sig.total) continue;
       const diff = Math.abs(x.day - y.day);
       if (diff === 0) {
         add(x.i, 'R051', SEVERITY.CHECK, `重複候補：No.${y.j.no}と同じ日・同じ金額・同じ科目です`);
@@ -112,6 +112,7 @@ function checkRemarkConsistency(journals, config, add) {
       if (s.side !== 'debit' || s.category !== 'expense') continue;
       const remark = norm(s.remark);
       if (remark.length < config.minRemarkLength) continue;
+      if (config.remarkStopWords.some((w) => norm(w) === remark)) continue;
       if (!groups.has(remark)) groups.set(remark, { items: new Set(), indexes: new Set() });
       groups.get(remark).items.add(s.item);
       groups.get(remark).indexes.add(i);
