@@ -66,3 +66,29 @@ test('Finding に仕訳の番号と位置が入る', () => {
   assert.equal(fs[0].severity, SEVERITY.MUST);
   assert.match(fs[0].message, /不明/);
 });
+
+test('R054: 摘要の言葉と科目が合わない', () => {
+  const fs = run([J('1', '2025-10-01', [B(S('通信費', 'expense', '課仕 10%'), BANK, '電気代 9月分')])]);
+  assert.deepEqual(ids(fs), ['R054:懸念']);
+  assert.match(fs[0].message, /「電気」/);
+  assert.match(fs[0].message, /通信費/);
+});
+
+test('R054: 想定どおりの科目・どれかの想定に入る科目なら出さない', () => {
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('水道光熱費', 'expense', '課仕 10%'), BANK, '電気代 9月分')])])), []);
+  // 「高速」は旅費交通費の言葉だが「インターネット」は通信費の言葉。通信費ならどちらかの想定に入るので出さない
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('通信費', 'expense', '課仕 10%'), BANK, '高速インターネット')])])), []);
+  // 英字は大文字小文字・全角半角を問わない
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('消耗品費', 'expense', '課仕 10%'), BANK, 'ｅｔｃ利用')])])), ['R054:懸念']);
+});
+
+test('R054: 費用以外の科目は見ない', () => {
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('前払費用', 'asset', '対象外'), BANK, '電気代 前払')])])), []);
+});
+
+test('摘要空欄: 費用を含む仕訳で全行の摘要が空', () => {
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('雑費', 'expense', '課仕 10%'), BANK, '')])])), ['EX-摘要空欄:懸念']);
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('雑費', 'expense', '課仕 10%'), BANK, '')])], { checkEmptyRemark: false })), []);
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(BANK, S('売掛金', 'asset', '対象外'), '')])])), []);
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('雑費', 'expense', '課仕 10%'), BANK, ''), B(null, BANK, '振込')])])), []);
+});

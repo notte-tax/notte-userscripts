@@ -18,9 +18,25 @@ function sidesOf(journal) {
   return out;
 }
 
+// R054: 摘要に言葉があり、その言葉が想定する科目のどれにも当たらない
+function checkRemarkKeywords(side, index, config, add) {
+  const remark = norm(side.remark).toUpperCase();
+  if (!remark) return;
+  const matched = [];
+  for (const group of config.remarkKeywords) {
+    const keyword = group.keywords.find((k) => remark.includes(norm(k).toUpperCase()));
+    if (keyword) matched.push({ keyword, expected: group.expected });
+  }
+  if (matched.length === 0) return;
+  if (matched.some((m) => m.expected.includes(side.item))) return;
+  const first = matched[0];
+  add(index, 'R054', SEVERITY.CONCERN, `摘要に「${first.keyword}」とありますが、科目は「${side.item}」です（想定: ${first.expected.join('・')}）`);
+}
+
 function checkSingle(journal, index, config, opts, add) {
   const changeDate = config.invoiceTransitionChangeDate;
-  for (const s of sidesOf(journal)) {
+  const sides = sidesOf(journal);
+  for (const s of sides) {
     if (s.tax.kind === '不明') {
       add(index, 'R001', SEVERITY.MUST, `税区分が「不明」です（${s.item}）`);
     }
@@ -43,6 +59,12 @@ function checkSingle(journal, index, config, opts, add) {
     if (s.side === 'debit' && config.repairItems.includes(s.item) && s.amount >= config.repairThreshold) {
       add(index, 'R035', SEVERITY.CONCERN, `${formatYen(s.amount)}円の修繕費です。資本的支出に当たらないか確認してください`);
     }
+    if (s.side === 'debit' && s.category === 'expense') {
+      checkRemarkKeywords(s, index, config, add);
+    }
+  }
+  if (opts.checkEmptyRemark && sides.some((s) => s.category === 'expense') && journal.branches.every((b) => !b.remark)) {
+    add(index, 'EX-摘要空欄', SEVERITY.CONCERN, '摘要が空欄です');
   }
 }
 
