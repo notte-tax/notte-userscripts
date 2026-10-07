@@ -25,9 +25,10 @@ function norm(s) {
 }
 
 function parseAmount(s) {
-  const digits = norm(s).replace(/[^\d-]/g, '');
-  const n = Number(digits);
-  return digits && Number.isFinite(n) ? n : 0;
+  const m = norm(s).match(/-?\d[\d,]*/);
+  if (!m) return 0;
+  const n = Number(m[0].replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
 }
 
 // 'YYYY-MM-DD' → UTC の通算日（日数の差を取るため）
@@ -67,7 +68,8 @@ function parseTax(raw) {
     rest = rest.replace(rate[0], '');
   }
   rest = rest.replace(/\s+/g, '');
-  tax.kind = TAX_KINDS.includes(rest) ? rest : (rest.includes('不明') ? '不明' : 'その他');
+  const prefix = [...TAX_KINDS].sort((a, b) => b.length - a.length).find((k) => rest.startsWith(k));
+  tax.kind = prefix || (rest.includes('不明') ? '不明' : 'その他');
   return tax;
 }
 
@@ -80,6 +82,7 @@ const CONFIG = {
   invoiceTransitionChangeDate: '2026-10-01', // R068 80%控除が終わる日
   minRemarkLength: 2,                        // R055 比べる摘要の最短文字数
   salaryItems: ['役員報酬', '給料手当', '給料', '賃金', '賞与', '役員賞与', '法定福利費', '退職金'],
+  salaryTaxableKeywords: ['通勤'],  // R028 の対象外（通勤手当は課税仕入）
   interestIncomeItems: ['受取利息'],
   consumablesItems: ['消耗品費'],
   repairItems: ['修繕費'],
@@ -230,7 +233,8 @@ function checkSingle(journal, index, config, opts, add) {
       if (s.tax.kind === '対象外') add(index, 'R022', SEVERITY.MUST, `売上高「${s.item}」に「対象外」が付いています`);
       if (s.tax.kind === '非売') add(index, 'R022', SEVERITY.CHECK, `売上高「${s.item}」が非課税売上になっています。非課税取引か確認してください`);
     }
-    if (s.side === 'debit' && config.salaryItems.includes(s.item) && s.tax.kind === '課仕') {
+    if (s.side === 'debit' && config.salaryItems.includes(s.item) && s.tax.kind === '課仕'
+      && !config.salaryTaxableKeywords.some((k) => norm(s.subItem).includes(k) || norm(s.remark).includes(k))) {
       add(index, 'R028', SEVERITY.MUST, `「${s.item}」に課税仕入の税区分が付いています。給与・法定福利費は不課税です`);
     }
     if (s.side === 'credit' && config.interestIncomeItems.includes(s.item) && s.tax.kind === '課売') {
@@ -476,6 +480,8 @@ function renderPanel(doc, view, handlers) {
 
   if (view.state === 'error') {
     panel.appendChild(el('div', 'njc-error', 'MFの画面が変わったため、チェックできません（notte-userscripts の更新を待ってください）'));
+  } else if (view.state === 'empty') {
+    panel.appendChild(el('div', 'njc-off', 'このページに読み取れる仕訳がありません'));
   } else if (view.state === 'off') {
     panel.appendChild(el('div', 'njc-off', 'チェックはオフです'));
   } else {
@@ -563,7 +569,11 @@ function start(win) {
         return;
       }
       const tbody = doc.querySelector(SELECTORS.tbody);
-      if (!tbody) return;
+      if (!tbody) {
+        const panel = doc.getElementById('njc-panel');
+        if (panel) panel.remove();
+        return;
+      }
       if (!settings.enabled) {
         renderPanel(doc, { state: 'off', settings }, handlers);
         return;
@@ -574,6 +584,10 @@ function start(win) {
       } catch (e) {
         if (!(e instanceof ReaderError)) throw e;
         renderPanel(doc, { state: 'error', settings }, handlers);
+        return;
+      }
+      if (journals.length === 0) {
+        renderPanel(doc, { state: 'empty', settings }, handlers);
         return;
       }
       const findings = runRules(journals, CONFIG, { checkEmptyRemark: settings.checkEmptyRemark });

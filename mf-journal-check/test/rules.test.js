@@ -128,3 +128,10 @@ test('R055: 科目が同じ・摘要が1文字なら出さない', () => {
   const short = [J('20', '2025-10-01', [B(S('消耗品費', 'expense', '課仕 10%', 3000), BANK, 'A')]), J('21', '2025-10-09', [B(S('通信費', 'expense', '課仕 10%', 2000), BANK, 'A')])];
   assert.deepEqual(ids(run(short)), []);
 });
+
+test('R028: 通勤手当は課税仕入なので対象外', () => {
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B({ ...S('給料手当', 'expense', '課仕 10%'), subItem: '通勤手当' }, BANK)])])), []);
+  const withRemark = B(S('給料手当', 'expense', '課仕 10%'), BANK);
+  withRemark.remark = '9月分通勤手当';
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [withRemark])])), []);
+});

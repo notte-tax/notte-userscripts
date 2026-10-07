@@ -6,6 +6,7 @@ const CONFIG = {
   invoiceTransitionChangeDate: '2026-10-01', // R068 80%控除が終わる日
   minRemarkLength: 2,                        // R055 比べる摘要の最短文字数
   salaryItems: ['役員報酬', '給料手当', '給料', '賃金', '賞与', '役員賞与', '法定福利費', '退職金'],
+  salaryTaxableKeywords: ['通勤'],  // R028 の対象外（通勤手当は課税仕入）
   interestIncomeItems: ['受取利息'],
   consumablesItems: ['消耗品費'],
   repairItems: ['修繕費'],

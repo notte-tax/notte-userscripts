@@ -33,3 +33,10 @@ test('不明・空欄・未知の表記', () => {
 test('raw には正規化した元の文字列が入る', () => {
   assert.equal(parseTax(' 共-課仕 10% ').raw, '共-課仕 10%');
 });
+
+test('parseTax: 余計な文字が付いても区分を取れる', () => {
+  const t = parseTax('課仕 10% (1,000)');
+  assert.equal(t.kind, '課仕');
+  assert.equal(t.rate, 10);
+  assert.equal(parseTax('対象外仕 xyz').kind, '対象外仕');
+});

@@ -146,6 +146,8 @@ function renderPanel(doc, view, handlers) {
 
   if (view.state === 'error') {
     panel.appendChild(el('div', 'njc-error', 'MFの画面が変わったため、チェックできません（notte-userscripts の更新を待ってください）'));
+  } else if (view.state === 'empty') {
+    panel.appendChild(el('div', 'njc-off', 'このページに読み取れる仕訳がありません'));
   } else if (view.state === 'off') {
     panel.appendChild(el('div', 'njc-off', 'チェックはオフです'));
   } else {

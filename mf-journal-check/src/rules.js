@@ -44,7 +44,8 @@ function checkSingle(journal, index, config, opts, add) {
       if (s.tax.kind === '対象外') add(index, 'R022', SEVERITY.MUST, `売上高「${s.item}」に「対象外」が付いています`);
       if (s.tax.kind === '非売') add(index, 'R022', SEVERITY.CHECK, `売上高「${s.item}」が非課税売上になっています。非課税取引か確認してください`);
     }
-    if (s.side === 'debit' && config.salaryItems.includes(s.item) && s.tax.kind === '課仕') {
+    if (s.side === 'debit' && config.salaryItems.includes(s.item) && s.tax.kind === '課仕'
+      && !config.salaryTaxableKeywords.some((k) => norm(s.subItem).includes(k) || norm(s.remark).includes(k))) {
       add(index, 'R028', SEVERITY.MUST, `「${s.item}」に課税仕入の税区分が付いています。給与・法定福利費は不課税です`);
     }
     if (s.side === 'credit' && config.interestIncomeItems.includes(s.item) && s.tax.kind === '課売') {

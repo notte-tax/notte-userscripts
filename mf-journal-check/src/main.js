@@ -54,7 +54,11 @@ function start(win) {
         return;
       }
       const tbody = doc.querySelector(SELECTORS.tbody);
-      if (!tbody) return;
+      if (!tbody) {
+        const panel = doc.getElementById('njc-panel');
+        if (panel) panel.remove();
+        return;
+      }
       if (!settings.enabled) {
         renderPanel(doc, { state: 'off', settings }, handlers);
         return;
@@ -65,6 +69,10 @@ function start(win) {
       } catch (e) {
         if (!(e instanceof ReaderError)) throw e;
         renderPanel(doc, { state: 'error', settings }, handlers);
+        return;
+      }
+      if (journals.length === 0) {
+        renderPanel(doc, { state: 'empty', settings }, handlers);
         return;
       }
       const findings = runRules(journals, CONFIG, { checkEmptyRemark: settings.checkEmptyRemark });

@@ -21,3 +21,8 @@ test('dayNumber: 日数の差が取れる', () => {
   assert.equal(dayNumber('2026-03-01') - dayNumber('2026-02-28'), 1);
   assert.equal(dayNumber('2025-10-18') - dayNumber('2025-10-15'), 3);
 });
+
+test('parseAmount: 余計な文字があっても最初の数値を取る', () => {
+  assert.equal(parseAmount('11,000 (1,000)'), 11000);
+  assert.equal(parseAmount('¥3,300'), 3300);
+});

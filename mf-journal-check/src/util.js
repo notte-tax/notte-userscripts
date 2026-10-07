@@ -7,9 +7,10 @@ function norm(s) {
 }
 
 function parseAmount(s) {
-  const digits = norm(s).replace(/[^\d-]/g, '');
-  const n = Number(digits);
-  return digits && Number.isFinite(n) ? n : 0;
+  const m = norm(s).match(/-?\d[\d,]*/);
+  if (!m) return 0;
+  const n = Number(m[0].replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
 }
 
 // 'YYYY-MM-DD' → UTC の通算日（日数の差を取るため）

@@ -29,7 +29,8 @@ function parseTax(raw) {
     rest = rest.replace(rate[0], '');
   }
   rest = rest.replace(/\s+/g, '');
-  tax.kind = TAX_KINDS.includes(rest) ? rest : (rest.includes('不明') ? '不明' : 'その他');
+  const prefix = [...TAX_KINDS].sort((a, b) => b.length - a.length).find((k) => rest.startsWith(k));
+  tax.kind = prefix || (rest.includes('不明') ? '不明' : 'その他');
   return tax;
 }
 

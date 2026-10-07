@@ -69,3 +69,25 @@ test('画面のつくりが変わっていたらエラー表示だけ出す', ()
   assert.match(dom.window.document.getElementById('njc-panel').textContent, /チェックできません/);
   dom.window.close();
 });
+
+test('読み取れる仕訳が0件なら「0件で問題なし」に見せない', async () => {
+  const win = open(BOOKS_URL);
+  const doc = win.document;
+  doc.querySelector(SELECTORS.tbody).innerHTML = '<tr><td>該当する仕訳はありません</td></tr>';
+  await wait(500);
+  assert.deepEqual(badges(doc), []);
+  const text = doc.getElementById('njc-panel').textContent;
+  assert.match(text, /読み取れる仕訳がありません/);
+  assert.doesNotMatch(text, /修正必須 0/);
+  win.close();
+});
+
+test('表そのものが消えたらパネルも消える', async () => {
+  const win = open(BOOKS_URL);
+  const doc = win.document;
+  assert.ok(doc.getElementById('njc-panel'));
+  doc.querySelector('table').remove();
+  await wait(500);
+  assert.equal(doc.getElementById('njc-panel'), null);
+  win.close();
+});

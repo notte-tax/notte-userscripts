@@ -106,3 +106,12 @@ test('色: 白地でコントラスト比 4.5:1 以上', () => {
     assert.ok(ratio >= 4.5, `${sev} ${hex} is ${ratio.toFixed(2)}:1`);
   }
 });
+
+test('renderPanel: empty は読み取れる仕訳がない旨だけ出す', () => {
+  const { doc } = setup();
+  renderPanel(doc, { state: 'empty', settings: { ...DEFAULT_SETTINGS } }, handlers);
+  const panel = doc.getElementById('njc-panel');
+  assert.match(panel.textContent, /このページに読み取れる仕訳がありません/);
+  assert.equal(panel.querySelector('.njc-count'), null);
+  assert.ok(panel.querySelector('input[name="enabled"]'));
+});
