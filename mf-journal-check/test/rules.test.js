@@ -149,3 +149,38 @@ test('R055: 決まり文句の摘要は比べない（完全一致のみ）', ()
   assert.deepEqual(ids(run(mk('当月分'))), []);
   assert.deepEqual(ids(run(mk('当月分 会費'))), ['R055:懸念', 'R055:懸念']);
 });
+
+const REM = (remark, amount = 50000) => [B(S('地代家賃', 'expense', '課仕 10%', amount), S('普通預金', 'asset', '対象外', amount), remark)];
+
+test('R051: 摘要が違えば重複候補にしない', () => {
+  assert.deepEqual(ids(run([J('10', '2025-10-01', REM('後藤')), J('11', '2025-10-01', REM('稲垣'))])), []);
+});
+
+test('R051: 摘要が同じなら重複候補', () => {
+  assert.deepEqual(ids(run([J('10', '2025-10-01', REM('出金 ATM')), J('11', '2025-10-01', REM('出金 ATM'))])), ['R051:要確認', 'R051:要確認']);
+});
+
+test('R051: 片方の摘要が空なら従来どおり比べる', () => {
+  assert.deepEqual(ids(run([J('10', '2025-10-01', REM('')), J('11', '2025-10-01', REM('出金 ATM'))])).filter((x) => x.startsWith('R051')), ['R051:要確認', 'R051:要確認']);
+});
+
+test('R052: 摘要が違えば出さない', () => {
+  assert.deepEqual(ids(run([J('10', '2025-10-01', REM('後藤')), J('11', '2025-10-03', REM('稲垣'))])), []);
+});
+
+test('重複候補のメッセージに相手の仕訳の中身が入る', () => {
+  const fs = run([J('10', '2025-10-01', RENT()), J('11', '2025-10-01', RENT())]);
+  const m = fs.find((f) => f.journalNo === '10').message;
+  assert.match(m, /No\.11/);
+  assert.match(m, /10\/01/);
+  assert.match(m, /地代家賃／普通預金/);
+  assert.match(m, /50,000円/);
+  assert.match(m, /摘要「事務所家賃」/);
+});
+
+test('重複候補のメッセージ：長い摘要は30文字で切って…を付ける', () => {
+  const long = 'あ'.repeat(35);
+  const fs = run([J('10', '2025-10-01', REM(long)), J('11', '2025-10-01', REM(long))]);
+  const m = fs.find((f) => f.journalNo === '10').message;
+  assert.ok(m.includes(`摘要「${'あ'.repeat(30)}…」`));
+});

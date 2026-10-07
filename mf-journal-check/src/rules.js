@@ -80,24 +80,43 @@ function signature(journal) {
   };
 }
 
+// 仕訳の摘要（空でない行の摘要を ' / ' でつなぐ）
+function remarkKeyOf(journal) {
+  return journal.branches.map((b) => norm(b.remark)).filter((r) => r).join(' / ');
+}
+
+// 重複候補の案内用：相手の仕訳を1行で説明する
+function describeJournal(journal) {
+  const sides = sidesOf(journal);
+  const names = (side) => [...new Set(sides.filter((s) => s.side === side).map((s) => s.item))].join('・');
+  const parts = [];
+  if (journal.date) parts.push(journal.date.slice(5).replace('-', '/'));
+  parts.push(`${names('debit')}／${names('credit')}`);
+  parts.push(`${formatYen(signature(journal).total)}円`);
+  const remark = remarkKeyOf(journal);
+  if (remark) parts.push(`摘要「${remark.length > 30 ? `${remark.slice(0, 30)}…` : remark}」`);
+  return parts.join('　');
+}
+
 // R051・R052: 重複「候補」。断定はしない
 function checkDuplicates(journals, config, add) {
   const list = journals
     .map((j, i) => ({ j, i }))
     .filter(({ j }) => !j.isOpening && j.date)
-    .map((x) => ({ ...x, sig: signature(x.j), day: dayNumber(x.j.date) }));
+    .map((x) => ({ ...x, sig: signature(x.j), day: dayNumber(x.j.date), remark: remarkKeyOf(x.j) }));
   for (let a = 0; a < list.length; a++) {
     for (let b = a + 1; b < list.length; b++) {
       const x = list[a];
       const y = list[b];
       if (x.sig.total < config.duplicateMinAmount || x.sig.key !== y.sig.key || x.sig.total !== y.sig.total) continue;
+      if (x.remark && y.remark && x.remark !== y.remark) continue;
       const diff = Math.abs(x.day - y.day);
       if (diff === 0) {
-        add(x.i, 'R051', SEVERITY.CHECK, `重複候補：No.${y.j.no}と同じ日・同じ金額・同じ科目です`);
-        add(y.i, 'R051', SEVERITY.CHECK, `重複候補：No.${x.j.no}と同じ日・同じ金額・同じ科目です`);
+        add(x.i, 'R051', SEVERITY.CHECK, `重複候補：No.${y.j.no}と同じ日・同じ金額・同じ科目です（${describeJournal(y.j)}）`);
+        add(y.i, 'R051', SEVERITY.CHECK, `重複候補：No.${x.j.no}と同じ日・同じ金額・同じ科目です（${describeJournal(x.j)}）`);
       } else if (diff <= config.nearDuplicateDays) {
-        add(x.i, 'R052', SEVERITY.CONCERN, `重複候補：No.${y.j.no}と近い日に同じ金額・同じ科目です`);
-        add(y.i, 'R052', SEVERITY.CONCERN, `重複候補：No.${x.j.no}と近い日に同じ金額・同じ科目です`);
+        add(x.i, 'R052', SEVERITY.CONCERN, `重複候補：No.${y.j.no}と近い日に同じ金額・同じ科目です（${describeJournal(y.j)}）`);
+        add(y.i, 'R052', SEVERITY.CONCERN, `重複候補：No.${x.j.no}と近い日に同じ金額・同じ科目です（${describeJournal(x.j)}）`);
       }
     }
   }
