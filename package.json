@@ -1,0 +1,13 @@
+{
+  "name": "notte-userscripts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tampermonkey userscripts for 税理士法人notte",
+  "scripts": {
+    "test": "node --test",
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}
