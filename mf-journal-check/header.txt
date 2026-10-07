@@ -1,0 +1,13 @@
+// ==UserScript==
+// @name         notte MF仕訳帳チェック
+// @namespace    https://github.com/notte-tax/notte-userscripts
+// @version      0.1.0
+// @description  MFクラウド会計の仕訳帳で、誤りの可能性が高い仕訳に色と理由を表示します（表示のみ・MFへの書き込みなし・外部通信なし）
+// @author       税理士法人notte
+// @match        https://accounting.moneyforward.com/books*
+// @grant        none
+// @run-at       document-idle
+// @noframes
+// @updateURL    https://raw.githubusercontent.com/notte-tax/notte-userscripts/main/dist/mf-journal-check.user.js
+// @downloadURL  https://raw.githubusercontent.com/notte-tax/notte-userscripts/main/dist/mf-journal-check.user.js
+// ==/UserScript==
