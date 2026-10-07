@@ -68,6 +68,63 @@ function checkSingle(journal, index, config, opts, add) {
   }
 }
 
+// 借方科目の組・貸方科目の組・借方金額の合計
+function signature(journal) {
+  const sides = sidesOf(journal);
+  const debit = sides.filter((s) => s.side === 'debit');
+  const credit = sides.filter((s) => s.side === 'credit');
+  return {
+    key: `${debit.map((s) => s.item).sort().join('+')}|${credit.map((s) => s.item).sort().join('+')}`,
+    total: debit.reduce((sum, s) => sum + s.amount, 0),
+  };
+}
+
+// R051・R052: 重複「候補」。断定はしない
+function checkDuplicates(journals, config, add) {
+  const list = journals
+    .map((j, i) => ({ j, i }))
+    .filter(({ j }) => !j.isOpening && j.date)
+    .map((x) => ({ ...x, sig: signature(x.j), day: dayNumber(x.j.date) }));
+  for (let a = 0; a < list.length; a++) {
+    for (let b = a + 1; b < list.length; b++) {
+      const x = list[a];
+      const y = list[b];
+      if (x.sig.total <= 0 || x.sig.key !== y.sig.key || x.sig.total !== y.sig.total) continue;
+      const diff = Math.abs(x.day - y.day);
+      if (diff === 0) {
+        add(x.i, 'R051', SEVERITY.CHECK, `重複候補：No.${y.j.no}と同じ日・同じ金額・同じ科目です`);
+        add(y.i, 'R051', SEVERITY.CHECK, `重複候補：No.${x.j.no}と同じ日・同じ金額・同じ科目です`);
+      } else if (diff <= config.nearDuplicateDays) {
+        add(x.i, 'R052', SEVERITY.CONCERN, `重複候補：No.${y.j.no}と近い日に同じ金額・同じ科目です`);
+        add(y.i, 'R052', SEVERITY.CONCERN, `重複候補：No.${x.j.no}と近い日に同じ金額・同じ科目です`);
+      }
+    }
+  }
+}
+
+// R055: 同じ摘要なのに費用の借方科目が分かれている
+function checkRemarkConsistency(journals, config, add) {
+  const groups = new Map();
+  journals.forEach((j, i) => {
+    if (j.isOpening) return;
+    for (const s of sidesOf(j)) {
+      if (s.side !== 'debit' || s.category !== 'expense') continue;
+      const remark = norm(s.remark);
+      if (remark.length < config.minRemarkLength) continue;
+      if (!groups.has(remark)) groups.set(remark, { items: new Set(), indexes: new Set() });
+      groups.get(remark).items.add(s.item);
+      groups.get(remark).indexes.add(i);
+    }
+  });
+  for (const [remark, g] of groups) {
+    if (g.items.size < 2) continue;
+    const items = [...g.items].join('／');
+    for (const i of g.indexes) {
+      add(i, 'R055', SEVERITY.CONCERN, `同じ摘要「${remark}」で科目が分かれています（${items}）`);
+    }
+  }
+}
+
 function runRules(journals, config, options = {}) {
   const opts = { checkEmptyRemark: true, ...options };
   const findings = [];
@@ -81,6 +138,8 @@ function runRules(journals, config, options = {}) {
   journals.forEach((j, i) => {
     if (!j.isOpening) checkSingle(j, i, config, opts, add);
   });
+  checkDuplicates(journals, config, add);
+  checkRemarkConsistency(journals, config, add);
   return findings;
 }
 

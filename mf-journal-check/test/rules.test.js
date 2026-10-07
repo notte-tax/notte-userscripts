@@ -92,3 +92,39 @@ test('摘要空欄: 費用を含む仕訳で全行の摘要が空', () => {
   assert.deepEqual(ids(run([J('1', '2025-10-01', [B(BANK, S('売掛金', 'asset', '対象外'), '')])])), []);
   assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('雑費', 'expense', '課仕 10%'), BANK, ''), B(null, BANK, '振込')])])), []);
 });
+
+const RENT = (amount = 50000) => [B(S('地代家賃', 'expense', '課仕 10%', amount), S('普通預金', 'asset', '対象外', amount), '事務所家賃')];
+
+test('R051: 同じ日・同じ科目・同じ金額は重複候補（両方に付く）', () => {
+  const fs = run([J('10', '2025-10-01', RENT()), J('11', '2025-10-01', RENT())]);
+  assert.deepEqual(ids(fs), ['R051:要確認', 'R051:要確認']);
+  assert.match(fs.find((f) => f.journalNo === '10').message, /No\.11/);
+  assert.match(fs[0].message, /重複候補/);
+});
+
+test('R052: 3日以内のずれは懸念、4日は出さない', () => {
+  assert.deepEqual(ids(run([J('10', '2025-10-01', RENT()), J('11', '2025-10-04', RENT())])), ['R052:懸念', 'R052:懸念']);
+  assert.deepEqual(ids(run([J('10', '2025-10-01', RENT()), J('11', '2025-10-05', RENT())])), []);
+});
+
+test('R051: 金額が違えば出さない・開始仕訳と日付不明は比べない', () => {
+  assert.deepEqual(ids(run([J('10', '2025-10-01', RENT(50000)), J('11', '2025-10-01', RENT(60000))])), []);
+  assert.deepEqual(ids(run([J('10', '2025-10-01', RENT(), true), J('11', '2025-10-01', RENT())])), []);
+  assert.deepEqual(ids(run([J('10', null, RENT()), J('11', null, RENT())])), []);
+});
+
+test('R055: 同じ摘要で費用の科目が分かれている', () => {
+  const a = J('20', '2025-10-01', [B(S('消耗品費', 'expense', '課仕 10%', 3000), BANK, 'アマゾン')]);
+  const b = J('21', '2025-10-09', [B(S('通信費', 'expense', '課仕 10%', 2000), BANK, 'アマゾン')]);
+  const fs = run([a, b]);
+  assert.deepEqual(ids(fs), ['R055:懸念', 'R055:懸念']);
+  assert.match(fs[0].message, /消耗品費/);
+  assert.match(fs[0].message, /通信費/);
+});
+
+test('R055: 科目が同じ・摘要が1文字なら出さない', () => {
+  const same = [J('20', '2025-10-01', [B(S('消耗品費', 'expense', '課仕 10%', 3000), BANK, 'アマゾン')]), J('21', '2025-10-09', [B(S('消耗品費', 'expense', '課仕 10%', 2000), BANK, 'アマゾン')])];
+  assert.deepEqual(ids(run(same)), []);
+  const short = [J('20', '2025-10-01', [B(S('消耗品費', 'expense', '課仕 10%', 3000), BANK, 'A')]), J('21', '2025-10-09', [B(S('通信費', 'expense', '課仕 10%', 2000), BANK, 'A')])];
+  assert.deepEqual(ids(run(short)), []);
+});
