@@ -167,3 +167,37 @@ test('札クリック: 別の札を押しても小窓は1つだけ・小窓内�
   assert.ok(doc.getElementById('njc-details'));
   assert.ok(openDetails && closeDetails);
 });
+
+test('小窓: 同じ確認すること・訂正案は1回だけ、問題は全件並べる', () => {
+  const { doc, journals, findings } = setup();
+  applyMarks(journals, findings);
+  const check = '通帳・証憑で、取引が本当に2回あったか';
+  const fix = '1回だけなら、片方の仕訳をMFで削除する';
+  const fs = [
+    { severity: '要確認', message: '重複候補：No.12と同じ日', check, fix },
+    { severity: '要確認', message: '重複候補：No.13と同じ日', check, fix },
+  ];
+  openDetails(doc, badgeOf(doc, 'R036'), 'R051', fs);
+  const box = doc.getElementById('njc-details');
+  const text = box.textContent;
+  const count = (s) => text.split(s).length - 1;
+  assert.ok(text.includes('No.12') && text.includes('No.13'));
+  assert.equal(count('確認すること'), 1);
+  assert.equal(count(check), 1);
+  assert.equal(count('訂正案'), 1);
+  assert.equal(count(fix), 1);
+  assert.equal(box.querySelectorAll('.njc-d-row').length, 3);
+});
+
+test('小窓: 内容が違う確認すること・訂正案はそれぞれ1回ずつ出る', () => {
+  const { doc, journals, findings } = setup();
+  applyMarks(journals, findings);
+  const fs = [
+    { severity: '要確認', message: 'm1', check: 'c1', fix: 'f1' },
+    { severity: '要確認', message: 'm2', check: 'c2', fix: 'f1' },
+  ];
+  openDetails(doc, badgeOf(doc, 'R036'), 'R051', fs);
+  const text = doc.getElementById('njc-details').textContent;
+  assert.equal(text.split('確認すること').length - 1, 2);
+  assert.equal(text.split('訂正案').length - 1, 1);
+});

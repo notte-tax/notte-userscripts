@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         notte MF仕訳帳チェック
 // @namespace    https://github.com/notte-tax/notte-userscripts
-// @version      0.2.0
+// @version      0.2.1
 // @description  MFクラウド会計の仕訳帳で、誤りの可能性が高い仕訳に色と理由を表示します（表示のみ・MFへの書き込みなし・外部通信なし）
 // @author       税理士法人notte
 // @match        https://accounting.moneyforward.com/books*
@@ -449,8 +449,10 @@ tr.njc-flash>td{outline:2px solid #4a76b0;outline-offset:-2px;}
 #njc-details{position:fixed;max-width:380px;box-sizing:border-box;padding:8px 10px;background:#fff;color:#1f2933;border:1px solid #c9d3da;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2);font:12px/1.6 sans-serif;}
 #njc-details .njc-d-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;font-weight:600;}
 #njc-details .njc-d-close{border:none;background:none;cursor:pointer;color:#5B7079;font-size:12px;}
-#njc-details .njc-d-item+.njc-d-item{margin-top:6px;padding-top:6px;border-top:1px solid #e1e7ec;}
-#njc-details .njc-d-label{display:inline-block;min-width:5.5em;color:#5B7079;font-weight:600;}
+#njc-details .njc-d-row{display:grid;grid-template-columns:6.5em 1fr;column-gap:8px;}
+#njc-details .njc-d-row+.njc-d-row{margin-top:4px;}
+#njc-details .njc-d-text{min-width:0;overflow-wrap:anywhere;}
+#njc-details .njc-d-label{color:#5B7079;font-weight:600;}
 @media (max-width:600px){#njc-panel .njc-extra{display:none;}}`;
   doc.head.appendChild(style);
 }
@@ -539,16 +541,20 @@ function openDetails(doc, badge, ruleId, findings) {
   close.addEventListener('click', () => closeDetails(doc));
   head.appendChild(close);
   box.appendChild(head);
-  for (const f of findings) {
-    const item = el('div', 'njc-d-item');
-    [['問題', f.message], ['確認すること', f.check], ['訂正案', f.fix]].forEach(([label, text]) => {
-      const row = el('div', 'njc-d-row');
-      row.appendChild(el('span', 'njc-d-label', label));
-      row.appendChild(el('span', 'njc-d-text', text));
-      item.appendChild(row);
-    });
-    box.appendChild(item);
-  }
+  const uniq = (key) => [...new Set(findings.map((f) => f[key]).filter((t) => t != null && t !== ''))];
+  const body = el('div', 'njc-d-body');
+  const addRow = (label, texts) => {
+    const row = el('div', 'njc-d-row');
+    row.appendChild(el('span', 'njc-d-label', label));
+    const value = el('div', 'njc-d-text');
+    texts.forEach((t) => value.appendChild(el('div', 'njc-d-line', t)));
+    row.appendChild(value);
+    body.appendChild(row);
+  };
+  if (uniq('message').length) addRow('問題', uniq('message'));
+  uniq('check').forEach((t) => addRow('確認すること', [t]));
+  uniq('fix').forEach((t) => addRow('訂正案', [t]));
+  box.appendChild(body);
   detailsOwners.set(box, badge);
   doc.body.appendChild(box);
 
