@@ -1,5 +1,5 @@
 // 画面への表示（色帯・札・集計パネル）。判定はしない
-const { SEVERITY_ORDER } = require('./rules'); // node-only
+const { SEVERITY_ORDER, RULE_TITLES } = require('./rules'); // node-only
 const { SELECTORS } = require('./reader'); // node-only
 
 const COLORS = { '修正必須': '#C62828', '要確認': '#A85A2E', '懸念': '#8A6D00' };
@@ -8,6 +8,9 @@ const SETTINGS_KEY = 'notte-jc-settings';
 const DEFAULT_SETTINGS = { enabled: true, checkEmptyRemark: true, collapsed: false };
 const PANEL_Z_INDEX = 99999;
 const jumpCursors = {};
+const badgeFindings = new WeakMap();
+const detailsOwners = new WeakMap();
+const detailsListenedDocs = new WeakSet();
 
 function loadSettings(storage) {
   try {
@@ -39,7 +42,7 @@ function injectStyles(doc) {
   }).join('\n');
   style.textContent = `${sevCss}
 .njc-badges{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px;}
-.njc-badge{display:inline-block;padding:0 4px;border:1px solid;border-radius:3px;background:#fff;font:600 11px/16px sans-serif;white-space:nowrap;cursor:help;}
+.njc-badge{display:inline-block;padding:0 4px;border:1px solid;border-radius:3px;background:#fff;font:600 11px/16px sans-serif;white-space:nowrap;cursor:pointer;}
 tr.njc-flash>td{outline:2px solid #4a76b0;outline-offset:-2px;}
 #njc-panel{position:fixed;top:56px;right:16px;z-index:${PANEL_Z_INDEX};max-width:calc(100vw - 32px);min-width:180px;padding:8px 10px;background:#fff;color:#1f2933;border:1px solid #c9d3da;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);font:12px/1.5 sans-serif;}
 #njc-panel .njc-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;}
@@ -50,6 +53,11 @@ tr.njc-flash>td{outline:2px solid #4a76b0;outline-offset:-2px;}
 #njc-panel .njc-total,#njc-panel .njc-off{color:#5B7079;margin-top:4px;}
 #njc-panel .njc-error{color:#C62828;max-width:240px;}
 #njc-panel label{display:block;margin-top:4px;cursor:pointer;}
+#njc-details{position:fixed;max-width:380px;box-sizing:border-box;padding:8px 10px;background:#fff;color:#1f2933;border:1px solid #c9d3da;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2);font:12px/1.6 sans-serif;}
+#njc-details .njc-d-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;font-weight:600;}
+#njc-details .njc-d-close{border:none;background:none;cursor:pointer;color:#5B7079;font-size:12px;}
+#njc-details .njc-d-item+.njc-d-item{margin-top:6px;padding-top:6px;border-top:1px solid #e1e7ec;}
+#njc-details .njc-d-label{display:inline-block;min-width:5.5em;color:#5B7079;font-weight:600;}
 @media (max-width:600px){#njc-panel .njc-extra{display:none;}}`;
   doc.head.appendChild(style);
 }
@@ -85,13 +93,85 @@ function applyMarks(journals, findings) {
       badge.className = `njc-badge njc-badge-${SEV_CLASS[worstOf(fs)]}`;
       badge.textContent = ruleId;
       badge.title = fs.map((f) => `【${f.severity}】${f.message}`).join('\n');
+      badgeFindings.set(badge, { ruleId, findings: fs });
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const existing = doc.getElementById('njc-details');
+        const wasOwn = existing && detailsOwners.get(existing) === badge;
+        closeDetails(doc);
+        if (!wasOwn) openDetails(doc, badge, ruleId, fs);
+      });
       box.appendChild(badge);
     }
     (first.querySelector(SELECTORS.options) || bandCell).appendChild(box);
   }
 }
 
+function closeDetails(doc) {
+  const box = doc.getElementById('njc-details');
+  if (box) box.remove();
+}
+
+function openDetails(doc, badge, ruleId, findings) {
+  injectStyles(doc);
+  closeDetails(doc);
+  if (!detailsListenedDocs.has(doc)) {
+    detailsListenedDocs.add(doc);
+    doc.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && t.nodeType === 1 && (t.closest('#njc-details') || t.closest('.njc-badge'))) return;
+      closeDetails(doc);
+    });
+    doc.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeDetails(doc);
+    });
+  }
+  const el = (tag, cls, text) => {
+    const e = doc.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const worst = worstOf(findings);
+  const box = el('div');
+  box.id = 'njc-details';
+  box.style.zIndex = String(PANEL_Z_INDEX);
+  const head = el('div', 'njc-d-head');
+  const title = el('span', null, `${ruleId} ${RULE_TITLES[ruleId] || ''}（${worst}）`);
+  title.style.color = COLORS[worst];
+  head.appendChild(title);
+  const close = el('button', 'njc-d-close', '✕');
+  close.type = 'button';
+  close.title = '閉じる';
+  close.addEventListener('click', () => closeDetails(doc));
+  head.appendChild(close);
+  box.appendChild(head);
+  for (const f of findings) {
+    const item = el('div', 'njc-d-item');
+    [['問題', f.message], ['確認すること', f.check], ['訂正案', f.fix]].forEach(([label, text]) => {
+      const row = el('div', 'njc-d-row');
+      row.appendChild(el('span', 'njc-d-label', label));
+      row.appendChild(el('span', 'njc-d-text', text));
+      item.appendChild(row);
+    });
+    box.appendChild(item);
+  }
+  detailsOwners.set(box, badge);
+  doc.body.appendChild(box);
+
+  const win = doc.defaultView;
+  const rect = badge.getBoundingClientRect();
+  const width = box.offsetWidth;
+  const height = box.offsetHeight;
+  const left = Math.max(8, Math.min(rect.left, win.innerWidth - width - 8));
+  let top = rect.bottom + 4;
+  if (top + height > win.innerHeight && rect.top - 4 - height >= 0) top = rect.top - 4 - height;
+  box.style.left = `${left}px`;
+  box.style.top = `${top}px`;
+}
+
 function clearMarks(doc) {
+  closeDetails(doc);
   doc.querySelectorAll('.njc-badges').forEach((e) => e.remove());
   doc.querySelectorAll('[class*="njc-band-"]').forEach((e) => {
     [...e.classList].filter((c) => c.startsWith('njc-band-')).forEach((c) => e.classList.remove(c));
@@ -182,4 +262,4 @@ function renderPanel(doc, view, handlers) {
   return panel;
 }
 
-module.exports = { COLORS, SETTINGS_KEY, DEFAULT_SETTINGS, loadSettings, saveSettings, applyMarks, clearMarks, countBySeverity, renderPanel }; // node-only
+module.exports = { COLORS, SETTINGS_KEY, DEFAULT_SETTINGS, loadSettings, saveSettings, applyMarks, clearMarks, countBySeverity, renderPanel, openDetails, closeDetails }; // node-only

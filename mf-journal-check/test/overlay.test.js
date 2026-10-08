@@ -7,7 +7,7 @@ const { CONFIG } = require('../src/config');
 const { runRules } = require('../src/rules');
 const {
   COLORS, DEFAULT_SETTINGS, SETTINGS_KEY, loadSettings, saveSettings,
-  applyMarks, clearMarks, countBySeverity, renderPanel,
+  applyMarks, clearMarks, countBySeverity, renderPanel, openDetails, closeDetails,
 } = require('../src/overlay');
 
 function setup() {
@@ -114,4 +114,56 @@ test('renderPanel: empty は読み取れる仕訳がない旨だけ出す', () =
   assert.match(panel.textContent, /このページに読み取れる仕訳がありません/);
   assert.equal(panel.querySelector('.njc-count'), null);
   assert.ok(panel.querySelector('input[name="enabled"]'));
+});
+
+function badgeOf(doc, id) {
+  return [...doc.querySelectorAll('.njc-badge')].find((b) => b.textContent === id);
+}
+
+test('札クリック: 問題・確認すること・訂正案の小窓が開く', () => {
+  const { doc, journals, findings } = setup();
+  applyMarks(journals, findings);
+  badgeOf(doc, 'R036').click();
+  const box = doc.getElementById('njc-details');
+  assert.ok(box);
+  assert.equal(box.parentNode, doc.body);
+  for (const w of ['問題', '確認すること', '訂正案', '1個（1組）あたりの金額が100,000円以上か', 'R036 10万円以上の消耗品費（要確認）']) {
+    assert.ok(box.textContent.includes(w), w);
+  }
+  assert.equal(doc.querySelectorAll('#njc-details').length, 1);
+});
+
+test('札クリック: ✕・外側クリック・clearMarks・Escape・再クリックで閉じる', () => {
+  const { doc, journals, findings } = setup();
+  applyMarks(journals, findings);
+  const b36 = badgeOf(doc, 'R036');
+  b36.click();
+  doc.querySelector('#njc-details button').click();
+  assert.equal(doc.getElementById('njc-details'), null);
+  b36.click();
+  doc.body.click();
+  assert.equal(doc.getElementById('njc-details'), null);
+  b36.click();
+  clearMarks(doc);
+  assert.equal(doc.getElementById('njc-details'), null);
+  applyMarks(journals, findings);
+  const again = badgeOf(doc, 'R036');
+  again.click();
+  again.click();
+  assert.equal(doc.getElementById('njc-details'), null);
+  again.click();
+  doc.dispatchEvent(new doc.defaultView.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(doc.getElementById('njc-details'), null);
+});
+
+test('札クリック: 別の札を押しても小窓は1つだけ・小窓内クリックでは閉じない', () => {
+  const { doc, journals, findings } = setup();
+  applyMarks(journals, findings);
+  badgeOf(doc, 'R036').click();
+  badgeOf(doc, 'R028').click();
+  assert.equal(doc.querySelectorAll('#njc-details').length, 1);
+  assert.match(doc.getElementById('njc-details').textContent, /R028/);
+  doc.getElementById('njc-details').click();
+  assert.ok(doc.getElementById('njc-details'));
+  assert.ok(openDetails && closeDetails);
 });

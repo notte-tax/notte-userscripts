@@ -91,3 +91,15 @@ test('表そのものが消えたらパネルも消える', async () => {
   assert.equal(doc.getElementById('njc-panel'), null);
   win.close();
 });
+
+test('札をクリックして小窓を開いても再チェックしない', async () => {
+  const win = open(BOOKS_URL);
+  const doc = win.document;
+  const badge = doc.querySelector('.njc-badge');
+  badge.click();
+  await wait(500);
+  assert.ok(doc.getElementById('njc-details'));
+  assert.equal(doc.querySelector('.njc-badge'), badge);
+  assert.ok(badge.isConnected);
+  win.close();
+});

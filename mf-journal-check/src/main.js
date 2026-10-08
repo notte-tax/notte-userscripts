@@ -13,7 +13,7 @@ function isBooksPage(loc) {
 // 表に関係する変化か（MF のツールチップ等、表の外の変化では再チェックしない）
 function isRelevantMutation(m) {
   const t = m.target;
-  if (t.nodeType === 1 && t.closest('#njc-panel')) return false;
+  if (t.nodeType === 1 && t.closest('#njc-panel, #njc-details')) return false;
   if (t.nodeType === 1 && t.closest('table')) return true;
   return [...m.addedNodes, ...m.removedNodes].some((n) => n.nodeType === 1 && (n.matches('table, tbody, tr') || n.querySelector('tbody')));
 }
