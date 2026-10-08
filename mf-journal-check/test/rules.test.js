@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parseTax } = require('../src/tax');
 const { CONFIG } = require('../src/config');
-const { runRules, SEVERITY } = require('../src/rules');
+const { runRules, SEVERITY, RULE_TITLES } = require('../src/rules');
 
 // 架空データを短く書くための道具
 const S = (item, category, tax, amount = 1000) => ({ item, subItem: '', partner: '', category, tax: parseTax(tax), amount });
@@ -208,4 +208,44 @@ test('R051: 補助科目が違う振替は重複候補にしない', () => {
 test('R051: 補助科目まで同じなら重複候補', () => {
   const fs = run([J('10', '2025-10-01', RET(['共済A', ''])), J('11', '2025-10-01', RET(['共済A', '']))]);
   assert.deepEqual(ids(fs).filter((x) => x.startsWith('R051')), ['R051:要確認', 'R051:要確認']);
+});
+
+test('v0.2.0: すべての Finding に check と fix が入る', () => {
+  const js = [
+    J('1', '2026-10-01', [B(S('雑費', 'expense', '不明'), BANK, '')]),
+    J('2', '2025-10-01', [B(BANK, S('売上高', 'revenue', '対象外'))]),
+    J('3', '2025-10-01', [B(BANK, S('売上高', 'revenue', '非売'))]),
+    J('4', '2025-10-01', [B(S('給料手当', 'expense', '課仕 10%'), BANK)]),
+    J('5', '2025-10-01', [B(BANK, S('受取利息', 'revenue', '課売 10%'))]),
+    J('6', '2026-10-01', [B(S('外注費', 'expense', '課仕 10%80%控除'), BANK)]),
+    J('7', '2025-10-02', [B(S('消耗品費', 'expense', '課仕 10%', 100000), BANK, 'アマゾン')]),
+    J('8', '2025-10-02', [B(S('修繕費', 'expense', '課仕 10%', 200000), BANK)]),
+    J('9', '2025-10-03', [B(S('通信費', 'expense', '課仕 10%', 3000), BANK, '電気代 9月分')]),
+    J('10', '2025-10-05', RENT()), J('11', '2025-10-05', RENT()),
+    J('12', '2025-10-20', RENT()), J('13', '2025-10-22', RENT()),
+    J('14', '2025-10-09', [B(S('通信費', 'expense', '課仕 10%', 2000), BANK, 'アマゾン')]),
+  ];
+  const fs = run(js);
+  const seen = new Set(fs.map((f) => f.ruleId));
+  for (const id of ['R001', 'R022', 'R028', 'R044', 'R068', 'R036', 'R035', 'R054', 'EX-摘要空欄', 'R051', 'R052', 'R055']) {
+    assert.ok(seen.has(id), `${id} not produced`);
+  }
+  assert.equal(fs.filter((f) => f.ruleId === 'R022').length, 2);
+  for (const f of fs) {
+    assert.equal(typeof f.check, 'string');
+    assert.equal(typeof f.fix, 'string');
+    assert.ok(f.check.length > 0 && f.fix.length > 0, `${f.ruleId} guide is empty`);
+    assert.ok(RULE_TITLES[f.ruleId], `${f.ruleId} has no title`);
+  }
+});
+
+test('v0.2.0: check / fix の中身', () => {
+  const r054 = run([J('1', '2025-10-01', [B(S('通信費', 'expense', '課仕 10%'), BANK, '電気代 9月分')])])[0];
+  assert.ok(r054.fix.includes('「水道光熱費」'));
+  const r068 = run([J('1', '2026-10-01', [B(S('外注費', 'expense', '課仕 10%80%控除'), BANK)])])[0];
+  assert.ok(r068.fix.includes('2026/10/01以降'));
+  const r036 = run([J('1', '2025-10-01', [B(S('消耗品費', 'expense', '課仕 10%', 100000), BANK)])])[0];
+  assert.ok(r036.check.includes('100,000円以上'));
+  const r051 = run([J('10', '2025-10-01', RENT()), J('11', '2025-10-01', RENT())])[0];
+  assert.ok(r051.fix.includes('削除'));
 });
