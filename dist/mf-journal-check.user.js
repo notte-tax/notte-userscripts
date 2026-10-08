@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         notte MF仕訳帳チェック
 // @namespace    https://github.com/notte-tax/notte-userscripts
-// @version      0.1.2
+// @version      0.1.3
 // @description  MFクラウド会計の仕訳帳で、誤りの可能性が高い仕訳に色と理由を表示します（表示のみ・MFへの書き込みなし・外部通信なし）
 // @author       税理士法人notte
 // @match        https://accounting.moneyforward.com/books*
@@ -83,6 +83,7 @@ const CONFIG = {
   invoiceTransitionChangeDate: '2026-10-01', // R068 80%控除が終わる日
   minRemarkLength: 2,                        // R055 比べる摘要の最短文字数
   remarkStopWords: ['当月分', '前月分', '振込', '振込手数料', '手数料', '口座振替'],  // R055 で比べない摘要（完全一致）
+  taxUnknownIgnoredItems: ['諸口'],  // R001 で見ない科目（つなぎ用の科目で税区分が「不明」と出る）
   salaryItems: ['役員報酬', '給料手当', '給料', '賃金', '賞与', '役員賞与', '法定福利費', '退職金'],
   salaryTaxableKeywords: ['通勤'],  // R028 の対象外（通勤手当は課税仕入）
   interestIncomeItems: ['受取利息'],
@@ -228,7 +229,7 @@ function checkSingle(journal, index, config, opts, add) {
   const changeDate = config.invoiceTransitionChangeDate;
   const sides = sidesOf(journal);
   for (const s of sides) {
-    if (s.tax.kind === '不明') {
+    if (s.tax.kind === '不明' && !config.taxUnknownIgnoredItems.includes(s.item)) {
       add(index, 'R001', SEVERITY.MUST, `税区分が「不明」です（${s.item}）`);
     }
     if (s.side === 'credit' && s.category === 'revenue' && s.item.includes('売上')) {
@@ -265,8 +266,9 @@ function signature(journal) {
   const sides = sidesOf(journal);
   const debit = sides.filter((s) => s.side === 'debit');
   const credit = sides.filter((s) => s.side === 'credit');
+  const nameOf = (s) => (s.subItem ? `${s.item}(${s.subItem})` : s.item);
   return {
-    key: `${debit.map((s) => s.item).sort().join('+')}|${credit.map((s) => s.item).sort().join('+')}`,
+    key: `${debit.map(nameOf).sort().join('+')}|${credit.map(nameOf).sort().join('+')}`,
     total: debit.reduce((sum, s) => sum + s.amount, 0),
   };
 }

@@ -184,3 +184,28 @@ test('重複候補のメッセージ：長い摘要は30文字で切って…を
   const m = fs.find((f) => f.journalNo === '10').message;
   assert.ok(m.includes(`摘要「${'あ'.repeat(30)}…」`));
 });
+
+test('R001: 諸口は税区分「不明」でも見ない（請求書機能のつなぎ科目）', () => {
+  const SHOGUCHI = S('諸口', 'liability', '不明');
+  const fs = run([J('1', '2025-10-01', [
+    B(S('売掛金', 'asset', '対象外'), SHOGUCHI),
+    B(SHOGUCHI, S('売上高', 'revenue', '課売 10%')),
+  ])]);
+  assert.deepEqual(ids(fs).filter((x) => x.startsWith('R001')), []);
+});
+
+test('R001: 諸口以外の科目の不明は引き続き出す', () => {
+  assert.deepEqual(ids(run([J('1', '2025-10-01', [B(S('雑費', 'expense', '不明'), BANK)])])).filter((x) => x.startsWith('R001')), ['R001:修正必須']);
+});
+
+const RET = (sub) => [B({ ...S('役員退職積立金', 'asset', '対象外', 1600), subItem: sub[0] }, { ...S('役員退職積立金', 'asset', '対象外', 1600), subItem: sub[1] }, '補助振替')];
+
+test('R051: 補助科目が違う振替は重複候補にしない', () => {
+  const fs = run([J('10', '2025-10-01', RET(['共済A', ' 共済A'.trim()])), J('11', '2025-10-01', RET(['共済A', '']))]);
+  assert.deepEqual(ids(fs).filter((x) => x.startsWith('R051')), []);
+});
+
+test('R051: 補助科目まで同じなら重複候補', () => {
+  const fs = run([J('10', '2025-10-01', RET(['共済A', ''])), J('11', '2025-10-01', RET(['共済A', '']))]);
+  assert.deepEqual(ids(fs).filter((x) => x.startsWith('R051')), ['R051:要確認', 'R051:要確認']);
+});

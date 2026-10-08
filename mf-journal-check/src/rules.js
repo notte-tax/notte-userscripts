@@ -37,7 +37,7 @@ function checkSingle(journal, index, config, opts, add) {
   const changeDate = config.invoiceTransitionChangeDate;
   const sides = sidesOf(journal);
   for (const s of sides) {
-    if (s.tax.kind === '不明') {
+    if (s.tax.kind === '不明' && !config.taxUnknownIgnoredItems.includes(s.item)) {
       add(index, 'R001', SEVERITY.MUST, `税区分が「不明」です（${s.item}）`);
     }
     if (s.side === 'credit' && s.category === 'revenue' && s.item.includes('売上')) {
@@ -74,8 +74,9 @@ function signature(journal) {
   const sides = sidesOf(journal);
   const debit = sides.filter((s) => s.side === 'debit');
   const credit = sides.filter((s) => s.side === 'credit');
+  const nameOf = (s) => (s.subItem ? `${s.item}(${s.subItem})` : s.item);
   return {
-    key: `${debit.map((s) => s.item).sort().join('+')}|${credit.map((s) => s.item).sort().join('+')}`,
+    key: `${debit.map(nameOf).sort().join('+')}|${credit.map(nameOf).sort().join('+')}`,
     total: debit.reduce((sum, s) => sum + s.amount, 0),
   };
 }
